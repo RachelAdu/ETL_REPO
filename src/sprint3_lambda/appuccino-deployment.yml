@@ -1,0 +1,15 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Appuccino template to create the deployment bucket for CF files + Lambda zips
+
+Parameters:
+  BucketNameDeployment:
+    Type: String
+    Description: Enter the name of S3 bucket you wish to create.
+    Default: appuccino-deployment-bucket
+
+Resources:
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Ref BucketNameDeployment

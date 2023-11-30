@@ -1,0 +1,75 @@
+import pymysql
+from sql_script import *
+
+def get_city_id(cursor, city_name):
+    try:
+        sql = "SELECT city_id FROM city WHERE city_name = %s"
+        cursor.execute(sql, (city_name,))
+        result = cursor.fetchone()
+        if result:
+            return result[0]
+        else:
+        
+            return None
+    except pymysql.Error as e:
+        print(f"Error getting city_id: {e}")
+        return None
+
+def get_payment_id(cursor, payment_type):
+    try:
+        sql = "SELECT payment_id FROM payment_method WHERE payment_type = %s"
+        cursor.execute(sql, (payment_type,))
+        result = cursor.fetchone()
+        if result:
+            return result[0]
+        else:
+          
+            return None
+    except pymysql.Error as e:
+        print(f"Error getting payment_id: {e}")
+        return None
+
+def process_orders_data(cursor, orders_list):
+    processed_orders = []
+    for order in orders_list:
+        
+        city_name = order['city_name']  
+        city_id = get_city_id(cursor, city_name)  
+
+        payment_type = order['payment_type']  
+        payment_id = get_payment_id(cursor, payment_type)  
+        
+        processed_order = {
+            'city_id': city_id,
+            'payment_id': payment_id,
+            'total_amount': float(order['total_amount']),
+            'transaction_date': order['date_and_time'].split()[0],
+            'transaction_time': order['date_and_time'].split()[1],
+            'products': []
+        }
+        processed_orders.append(processed_order)
+    return processed_orders
+
+
+def insert_orders_data(connection, orders_list):
+    try:
+        cursor = connection.cursor()
+        sql = """
+            INSERT INTO orders (city_id, payment_id, total_amount, transaction_date, transaction_time)
+            VALUES (%s, %s, %s, %s, %s);
+        """
+
+        for order in orders_list:
+            row = (
+                order['city_id'], order['payment_id'],
+                order['total_amount'], order['transaction_date'],
+                order['transaction_time']
+            )
+            cursor.execute(sql, row)
+
+        connection.commit()
+        cursor.close()
+        print('Rows inserted into orders table.')
+    except pymysql.Error as e:
+        print(f"Error inserting data into the orders table: {e}")
+        connection.rollback()

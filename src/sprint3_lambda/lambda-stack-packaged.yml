@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "appuccino team template to deploy an ETL lambda which is triggered by\
+  \ an S3 event.\n"
+Parameters:
+  BucketNameRawData:
+    Type: String
+    Description: s3 bucket for appuccino team where csv files will be uploaded
+    Default: appuccino-csv-data-bucket
+  NetworkStackName:
+    Type: String
+    Default: project-networking
+    Description: Network stack with VPC containing Redshift instance
+  SSMParameterName:
+    Type: String
+    Default: appuchino_redshift_settings
+    Description: Name of the SSM parameter to use to connect to Redshift
+Resources:
+  EtlLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: appuccino-etl-lambda
+      Runtime: python3.9
+      Handler: lambda_function.lambda_handler
+      Role:
+        Fn::Sub: arn:aws:iam::${AWS::AccountId}:role/lambda-execution-role
+      Timeout: 900
+      ReservedConcurrentExecutions: 10
+      Code:
+        S3Bucket: appuccino-deployment-bucket
+        S3Key: 5acb6ec62bb562ce247d46854a1efa90
+      VpcConfig:
+        SecurityGroupIds:
+        - Fn::ImportValue:
+            Fn::Sub: project-networking-VPCSGID
+        SubnetIds:
+        - Fn::ImportValue:
+            Fn::Sub: project-networking-PrivateSubnet0ID
+      Environment:
+        Variables:
+          SSM_PARAMETER_NAME:
+            Ref: SSMParameterName
+  S3Bucketappuccino:
+    Type: AWS::S3::Bucket
+    DependsOn:
+    - S3BucketPermission
+    Properties:
+      BucketName:
+        Ref: BucketNameRawData
+      NotificationConfiguration:
+        LambdaConfigurations:
+        - Event: s3:ObjectCreated:*
+          Function:
+            Fn::GetAtt:
+            - EtlLambdaFunction
+            - Arn
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  S3BucketPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName:
+        Ref: EtlLambdaFunction
+      Principal: s3.amazonaws.com
+      SourceArn:
+        Fn::Sub: arn:aws:s3:::${BucketNameRawData}

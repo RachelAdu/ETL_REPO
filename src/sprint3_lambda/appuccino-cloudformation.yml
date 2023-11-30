@@ -1,0 +1,70 @@
+#aws sso login --profile generation-de
+#aws s3 mb s3://appuccino-cloudformation-templates --region eu-west-1
+#aws s3 cp appuccino-cloudformation.yml s3://appuccino-cloudformation-templates/appuccino-cloudformation.yml --profile generation-de
+# aws cloudformation create-stack --stack-name appuccino-stack --template-url https://appuccino-cloudformation-templates.s3.eu-west-1.amazonaws.com/appuccino-cloudformation.yml --capabilities CAPABILITY_NAMED_IAM --region eu-west-1 --profile generation-de
+#creating a bucket
+#creating a lambda function
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  appuccino team template to deploy an ETL lambda which is triggered by an S3 event.
+
+Parameters:
+  BucketNameRawData:
+    Type: String
+    Description: s3 bucket for appuccino team where csv files will be uploaded
+    Default: appuccino-csv-data-bucket
+  NetworkStackName:
+    Type: String
+    Default: project-networking
+    Description: Network stack with VPC containing Redshift instance
+  SSMParameterName:
+    Type: String
+    Default: appuchino_redshift_settings
+    Description: Name of the SSM parameter to use to connect to Redshift
+
+Resources:
+  EtlLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: appuccino-etl-lambda
+      Runtime: python3.9
+      Handler: lambda_function.lambda_handler
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/lambda-execution-role'
+      Timeout: 900
+      ReservedConcurrentExecutions: 10
+      Code: ./src
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              !Sub 'project-networking-VPCSGID'
+        SubnetIds:
+          - Fn::ImportValue:
+              !Sub 'project-networking-PrivateSubnet0ID'
+      Environment:
+        Variables:
+          SSM_PARAMETER_NAME: !Ref SSMParameterName
+
+  S3Bucketappuccino:
+    Type: "AWS::S3::Bucket"
+    DependsOn:
+      - S3BucketPermission
+    Properties:
+      BucketName: !Ref BucketNameRawData
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt EtlLambdaFunction.Arn
+      PublicAccessBlockConfiguration:
+          BlockPublicAcls: True
+          BlockPublicPolicy: True
+          IgnorePublicAcls: True
+          RestrictPublicBuckets: True
+
+  S3BucketPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref EtlLambdaFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub "arn:aws:s3:::${BucketNameRawData}"

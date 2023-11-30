@@ -1,7 +1,8 @@
 # ETL_REPO  
   
 # Appuccino
-Appuccino project team repo
+Appuccino project team repo  
+Team Extract, Transform and Load Pipeline
 ## Team members:
 Erica L., Rachel A., Muhammad N., Thomasin L., Georgia D.
 ## Links:
